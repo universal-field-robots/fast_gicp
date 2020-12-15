@@ -18,12 +18,17 @@ struct VoxelMapInfo {
 class GaussianVoxelMap {
 public:
   GaussianVoxelMap(float resolution, int init_num_buckets = 8192, int max_bucket_scan_count = 10);
+  ~GaussianVoxelMap();
 
+  void set_resolution(float resolution);
   void create_voxelmap(const thrust::device_vector<Eigen::Vector3f>& points);
   void create_voxelmap(const thrust::device_vector<Eigen::Vector3f>& points, const thrust::device_vector<Eigen::Matrix3f>& covariances);
 
 private:
   void create_bucket_table(cudaStream_t stream, const thrust::device_vector<Eigen::Vector3f>& points);
+
+private:
+  cudaStream_t stream;
 
 public:
   const int init_num_buckets;

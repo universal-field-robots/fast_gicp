@@ -8,6 +8,7 @@
 #include <thrust/device_vector.h>
 #include <thrust/transform_reduce.h>
 
+#include <fast_gicp/cuda/so3.cuh>
 #include <fast_gicp/cuda/gaussian_voxelmap.cuh>
 
 namespace fast_gicp {
@@ -27,20 +28,6 @@ struct compute_derivatives_kernel {
     voxel_means_ptr(voxelmap.voxel_means.data()),
     voxel_covs_ptr(voxelmap.voxel_covs.data())
   {}
-
-  // skew symmetric matrix
-  __host__ __device__
-  Eigen::Matrix3f skew_symmetric(const Eigen::Vector3f& x) const {
-    Eigen::Matrix3f skew = Eigen::Matrix3f::Zero();
-    skew(0, 1) = -x[2];
-    skew(0, 2) = x[1];
-    skew(1, 0) = x[2];
-    skew(1, 2) = -x[0];
-    skew(2, 0) = -x[1];
-    skew(2, 1) = x[0];
-
-    return skew;
-  }
 
   // calculate derivatives
   __host__ __device__

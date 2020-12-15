@@ -7,7 +7,6 @@
 #include <fast_gicp/cuda/brute_force_knn.cuh>
 #include <fast_gicp/cuda/covariance_estimation.cuh>
 #include <fast_gicp/cuda/gaussian_voxelmap.cuh>
-#include <fast_gicp/cuda/compute_mahalanobis.cuh>
 #include <fast_gicp/cuda/compute_derivatives.cuh>
 #include <fast_gicp/cuda/find_voxel_correspondences.cuh>
 

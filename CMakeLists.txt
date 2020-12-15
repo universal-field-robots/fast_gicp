@@ -7,7 +7,7 @@ set(CMAKE_CXX_FLAGS "-msse -msse2 -msse3 -msse4 -msse4.1 -msse4.2")
 
 set(CMAKE_BUILD_TYPE "Release")
 
-find_package(catkin)
+find_package(catkin COMPONENTS iridescent)
 
 find_package(PCL REQUIRED)
 find_package(Eigen3 REQUIRED)
@@ -79,25 +79,27 @@ if(CUDA_FOUND)
   add_definitions(-DUSE_VGICP_CUDA)
 
   cuda_add_library(fast_vgicp_cuda
+    src/fast_gicp/cuda/fast_ndt_cuda.cu
     src/fast_gicp/cuda/fast_vgicp_cuda.cu
     src/fast_gicp/cuda/brute_force_knn.cu
     src/fast_gicp/cuda/covariance_estimation.cu
     src/fast_gicp/cuda/gaussian_voxelmap.cu
     src/fast_gicp/cuda/find_voxel_correspondences.cu
     src/fast_gicp/cuda/compute_derivatives.cu
-    src/fast_gicp/cuda/compute_mahalanobis.cu
-
+    src/fast_gicp/cuda/compute_ndt_derivatives.cu
   )
   target_include_directories(fast_vgicp_cuda PRIVATE
     include
     thirdparty/Eigen
     thirdparty/nvbio
+    ${catkin_INCLUDE_DIRS}
   )
   cuda_add_cublas_to_target(fast_vgicp_cuda)
 
   # add vgicp_cuda to libfast_gicp
   target_sources(fast_gicp PRIVATE
     src/fast_gicp/gicp/fast_vgicp_cuda.cpp
+    src/fast_gicp/ndt/fast_ndt_cuda.cpp
   )
   target_link_libraries(fast_gicp
     fast_vgicp_cuda

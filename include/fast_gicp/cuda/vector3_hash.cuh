@@ -1,6 +1,8 @@
 #ifndef FAST_GICP_CUDA_VECTOR3_HASH_CUH
 #define FAST_GICP_CUDA_VECTOR3_HASH_CUH
 
+#include <fast_gicp/gicp/gicp_settings.hpp>
+
 namespace fast_gicp {
   namespace cuda {
 

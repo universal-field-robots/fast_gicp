@@ -8,6 +8,8 @@ enum class RegularizationMethod { NONE, MIN_EIG, NORMALIZED_MIN_EIG, PLANE, FROB
 enum class NeighborSearchMethod { DIRECT27, DIRECT7, DIRECT1 };
 
 enum class VoxelAccumulationMode { ADDITIVE, ADDITIVE_WEIGHTED, MULTIPLICATIVE };
-}
+
+enum class NDTDistanceMode { P2D, D2D };
+}  // namespace fast_gicp
 
 #endif

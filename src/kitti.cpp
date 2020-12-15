@@ -15,6 +15,7 @@
 #include <fast_gicp/gicp/fast_vgicp.hpp>
 
 #ifdef USE_VGICP_CUDA
+#include <fast_gicp/ndt/fast_ndt_cuda.hpp>
 #include <fast_gicp/gicp/fast_vgicp_cuda.hpp>
 #endif
 
@@ -87,7 +88,8 @@ int main(int argc, char** argv) {
   // you should fine-tune hyper-parameters (e.g., voxel resolution, max correspondence distance) for the best result
   // fast_gicp::FastGICP<pcl::PointXYZ, pcl::PointXYZ> gicp;
   // fast_gicp::FastVGICP<pcl::PointXYZ, pcl::PointXYZ> gicp;
-  fast_gicp::FastVGICPCuda<pcl::PointXYZ, pcl::PointXYZ> gicp;
+  // fast_gicp::FastVGICPCuda<pcl::PointXYZ, pcl::PointXYZ> gicp;
+  fast_gicp::FastNDTCuda<pcl::PointXYZ, pcl::PointXYZ> gicp;
   gicp.setMaxCorrespondenceDistance(1.0);
 
   // set initial frame as target
@@ -121,7 +123,8 @@ int main(int argc, char** argv) {
     // align and swap source and target cloud for next registration
     auto aligned = boost::make_shared<pcl::PointCloud<pcl::PointXYZ>>();
     gicp.align(*aligned);
-    gicp.swapSourceAndTarget();
+    // gicp.swapSourceAndTarget();
+    gicp.setInputTarget(source);
 
     // accumulate pose
     poses[i] = poses[i - 1] * gicp.getFinalTransformation().cast<double>();

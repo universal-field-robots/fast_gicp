@@ -12,6 +12,7 @@
 
 #include <fast_gicp/so3/so3.hpp>
 #include <fast_gicp/gicp/fast_vgicp.hpp>
+#include <fast_gicp/gicp/neighbor_offsets.hpp>
 
 namespace fast_gicp {
 

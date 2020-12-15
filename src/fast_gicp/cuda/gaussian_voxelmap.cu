@@ -83,6 +83,10 @@ struct accumulate_points_kernel {
       uint64_t bucket_index = (hash + i) % info.num_buckets;
       const thrust::pair<Eigen::Vector3i, int>& bucket = thrust::raw_pointer_cast(buckets_ptr)[bucket_index];
 
+      if (bucket.second < 0) {
+        return;
+      }
+
       if(equal(bucket.first, coord)) {
         int& num_points = thrust::raw_pointer_cast(num_points_ptr)[bucket.second];
         Eigen::Vector3f& voxel_mean = thrust::raw_pointer_cast(voxel_means_ptr)[bucket.second];
@@ -100,8 +104,62 @@ struct accumulate_points_kernel {
     }
   }
 
+  __device__ void operator()(const Eigen::Vector3f& x) const {
+    const auto& info = *thrust::raw_pointer_cast(voxelmap_info_ptr);
+
+    const Eigen::Vector3i coord = calc_voxel_coord(x, info.voxel_resolution);
+    uint64_t hash = vector3i_hash(coord);
+
+    for (int i = 0; i < info.max_bucket_scan_count; i++) {
+      uint64_t bucket_index = (hash + i) % info.num_buckets;
+      const thrust::pair<Eigen::Vector3i, int>& bucket = thrust::raw_pointer_cast(buckets_ptr)[bucket_index];
+
+      if (bucket.second < 0) {
+        return;
+      }
+
+      if (equal(bucket.first, coord)) {
+        int& num_points = thrust::raw_pointer_cast(num_points_ptr)[bucket.second];
+        Eigen::Vector3f& voxel_mean = thrust::raw_pointer_cast(voxel_means_ptr)[bucket.second];
+        Eigen::Matrix3f& voxel_cov = thrust::raw_pointer_cast(voxel_covs_ptr)[bucket.second];
+
+        const Eigen::Vector3f& mean = x;
+        const Eigen::Matrix3f cov = x * x.transpose();
+
+        atomicAdd(&num_points, 1);
+        for (int j = 0; j < 3; j++) {
+          atomicAdd(voxel_mean.data() + j, mean[j]);
+        }
+
+        for (int j = 0; j < 9; j++) {
+          atomicAdd(voxel_cov.data() + j, cov.data()[j]);
+        }
+      }
+    }
+  }
+
   thrust::device_ptr<const VoxelMapInfo> voxelmap_info_ptr;
   thrust::device_ptr<const thrust::pair<Eigen::Vector3i, int>> buckets_ptr;
+
+  thrust::device_ptr<int> num_points_ptr;
+  thrust::device_ptr<Eigen::Vector3f> voxel_means_ptr;
+  thrust::device_ptr<Eigen::Matrix3f> voxel_covs_ptr;
+};
+
+struct finalize_voxels_mean_kernel {
+  finalize_voxels_mean_kernel(thrust::device_vector<int>& num_points, thrust::device_vector<Eigen::Vector3f>& voxel_means, thrust::device_vector<Eigen::Matrix3f>& voxel_covs)
+  : num_points_ptr(num_points.data()),
+    voxel_means_ptr(voxel_means.data()),
+    voxel_covs_ptr(voxel_covs.data()) {}
+
+  __host__ __device__ void operator()(int i) const {
+    int num_points = thrust::raw_pointer_cast(num_points_ptr)[i];
+    auto& voxel_mean = thrust::raw_pointer_cast(voxel_means_ptr)[i];
+    auto& voxel_cov = thrust::raw_pointer_cast(voxel_covs_ptr)[i];
+
+    voxel_mean /= num_points;
+    voxel_cov /= num_points;
+  }
 
   thrust::device_ptr<int> num_points_ptr;
   thrust::device_ptr<Eigen::Vector3f> voxel_means_ptr;
@@ -115,10 +173,11 @@ struct finalize_voxels_kernel {
   __host__ __device__ void operator()(int i) const {
     int num_points = thrust::raw_pointer_cast(num_points_ptr)[i];
     auto& voxel_mean = thrust::raw_pointer_cast(voxel_means_ptr)[i];
-    auto& voxel_covs = thrust::raw_pointer_cast(voxel_covs_ptr)[i];
+    auto& voxel_cov = thrust::raw_pointer_cast(voxel_covs_ptr)[i];
 
+    Eigen::Vector3f sum_pt = voxel_mean;
     voxel_mean /= num_points;
-    voxel_covs /= num_points;
+    voxel_cov = (voxel_cov - sum_pt * voxel_mean.transpose()) / num_points;
   }
 
   thrust::device_ptr<int> num_points_ptr;
@@ -133,22 +192,36 @@ GaussianVoxelMap::GaussianVoxelMap(float resolution, int init_num_buckets, int m
   voxelmap_info.voxel_resolution = resolution;
   voxelmap_info_ptr.resize(1);
   voxelmap_info_ptr[0] = voxelmap_info;
+
+  cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking);
 }
 
-void GaussianVoxelMap::create_voxelmap(const thrust::device_vector<Eigen::Vector3f>& points) {
-  cudaStream_t stream;
-  cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking);
-
-  create_bucket_table(stream, points);
-
-  cudaStreamSynchronize(stream);
+GaussianVoxelMap::~GaussianVoxelMap() {
   cudaStreamDestroy(stream);
 }
 
-void GaussianVoxelMap::create_voxelmap(const thrust::device_vector<Eigen::Vector3f>& points, const thrust::device_vector<Eigen::Matrix3f>& covariances) {
-  cudaStream_t stream;
-  cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking);
+void GaussianVoxelMap::set_resolution(float resolution) {
+  voxelmap_info.voxel_resolution = resolution;
+  voxelmap_info_ptr[0] = voxelmap_info;
+}
 
+void GaussianVoxelMap::create_voxelmap(const thrust::device_vector<Eigen::Vector3f>& points) {
+  create_bucket_table(stream, points);
+
+  num_points.resize(voxelmap_info.num_voxels);
+  voxel_means.resize(voxelmap_info.num_voxels);
+  voxel_covs.resize(voxelmap_info.num_voxels);
+  thrust::fill(thrust::cuda::par.on(stream), num_points.begin(), num_points.end(), 0);
+  thrust::fill(thrust::cuda::par.on(stream), voxel_means.begin(), voxel_means.end(), Eigen::Vector3f::Zero().eval());
+  thrust::fill(thrust::cuda::par.on(stream), voxel_covs.begin(), voxel_covs.end(), Eigen::Matrix3f::Zero().eval());
+
+  thrust::for_each(thrust::cuda::par.on(stream), points.begin(), points.end(), accumulate_points_kernel(voxelmap_info_ptr.data(), buckets, num_points, voxel_means, voxel_covs));
+  thrust::for_each(thrust::counting_iterator<int>(0), thrust::counting_iterator<int>(voxelmap_info.num_voxels), finalize_voxels_kernel(num_points, voxel_means, voxel_covs));
+
+  cudaStreamSynchronize(stream);
+}
+
+void GaussianVoxelMap::create_voxelmap(const thrust::device_vector<Eigen::Vector3f>& points, const thrust::device_vector<Eigen::Matrix3f>& covariances) {
   create_bucket_table(stream, points);
 
   num_points.resize(voxelmap_info.num_voxels);
@@ -160,10 +233,9 @@ void GaussianVoxelMap::create_voxelmap(const thrust::device_vector<Eigen::Vector
 
   thrust::for_each(thrust::cuda::par.on(stream), thrust::make_zip_iterator(thrust::make_tuple(points.begin(), covariances.begin())), thrust::make_zip_iterator(thrust::make_tuple(points.end(), covariances.end())), accumulate_points_kernel(voxelmap_info_ptr.data(), buckets, num_points, voxel_means, voxel_covs));
 
-  thrust::for_each(thrust::counting_iterator<int>(0), thrust::counting_iterator<int>(voxelmap_info.num_voxels), finalize_voxels_kernel(num_points, voxel_means, voxel_covs));
+  thrust::for_each(thrust::counting_iterator<int>(0), thrust::counting_iterator<int>(voxelmap_info.num_voxels), finalize_voxels_mean_kernel(num_points, voxel_means, voxel_covs));
 
   cudaStreamSynchronize(stream);
-  cudaStreamDestroy(stream);
 }
 
 void GaussianVoxelMap::create_bucket_table(cudaStream_t stream, const thrust::device_vector<Eigen::Vector3f>& points) {
