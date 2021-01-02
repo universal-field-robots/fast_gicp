@@ -6,25 +6,22 @@
 
 namespace fast_gicp {
 
-template<typename PointSource, typename PointTarget>
-FastGICPSingleThread<PointSource, PointTarget>::FastGICPSingleThread()
-: FastGICP<PointSource, PointTarget>()
-{
+template <typename PointSource, typename PointTarget>
+FastGICPSingleThread<PointSource, PointTarget>::FastGICPSingleThread() : FastGICP<PointSource, PointTarget>() {
   this->reg_name_ = "FastGICPSingleThread";
   this->num_threads_ = 1;
 }
 
-template<typename PointSource, typename PointTarget>
+template <typename PointSource, typename PointTarget>
 FastGICPSingleThread<PointSource, PointTarget>::~FastGICPSingleThread() {}
 
-
-template<typename PointSource, typename PointTarget>
+template <typename PointSource, typename PointTarget>
 void FastGICPSingleThread<PointSource, PointTarget>::computeTransformation(PointCloudSource& output, const Matrix4& guess) {
   anchors_.clear();
   FastGICP<PointSource, PointTarget>::computeTransformation(output, guess);
 }
 
-template<typename PointSource, typename PointTarget>
+template <typename PointSource, typename PointTarget>
 void FastGICPSingleThread<PointSource, PointTarget>::update_correspondences(const Eigen::Isometry3d& x) {
   assert(source_covs_.size() == input_->size());
   assert(target_covs_.size() == target_->size());
@@ -42,28 +39,28 @@ void FastGICPSingleThread<PointSource, PointTarget>::update_correspondences(cons
   std::vector<int> k_indices;
   std::vector<float> k_sq_dists;
 
-  for(int i = 0; i < input_->size(); i++) {
+  for (int i = 0; i < input_->size(); i++) {
     PointTarget pt;
     pt.getVector4fMap() = trans * input_->at(i).getVector4fMap();
 
-    if(!is_first) {
+    if (!is_first) {
       double d = (pt.getVector4fMap() - anchors_[i]).norm();
       double max_first = std::sqrt(sq_distances_[i]) + d;
       double min_second = std::sqrt(second_sq_distances_[i]) - d;
 
-      if(max_first < min_second) {
+      if (max_first < min_second) {
         continue;
       }
     }
 
     target_kdtree_->nearestKSearch(pt, 2, k_indices, k_sq_dists);
 
-    correspondences_[i] = k_indices[0];
+    correspondences_[i] = k_sq_dists[0] < this->corr_dist_threshold_ * this->corr_dist_threshold_ ? k_indices[0] : -1;
     sq_distances_[i] = k_sq_dists[0];
     second_sq_distances_[i] = k_sq_dists[1];
     anchors_[i] = pt.getVector4fMap();
 
-    if(correspondences_[i] < 0) {
+    if (correspondences_[i] < 0) {
       continue;
     }
 
@@ -78,18 +75,18 @@ void FastGICPSingleThread<PointSource, PointTarget>::update_correspondences(cons
   }
 }
 
-template<typename PointSource, typename PointTarget>
+template <typename PointSource, typename PointTarget>
 double FastGICPSingleThread<PointSource, PointTarget>::linearize(const Eigen::Isometry3d& trans, Eigen::Matrix<double, 6, 6>* H, Eigen::Matrix<double, 6, 1>* b) {
-  if(H && b) {
+  if (H && b) {
     update_correspondences(trans);
     H->setZero();
     b->setZero();
   }
 
   double sum_errors = 0.0;
-  for(int i = 0; i < input_->size(); i++) {
+  for (int i = 0; i < input_->size(); i++) {
     int target_index = correspondences_[i];
-    if(target_index < 0) {
+    if (target_index < 0) {
       continue;
     }
 
@@ -104,7 +101,7 @@ double FastGICPSingleThread<PointSource, PointTarget>::linearize(const Eigen::Is
 
     sum_errors += error.squaredNorm();
 
-    if(H == nullptr || b == nullptr) {
+    if (H == nullptr || b == nullptr) {
       continue;
     }
 
@@ -121,7 +118,7 @@ double FastGICPSingleThread<PointSource, PointTarget>::linearize(const Eigen::Is
   return sum_errors;
 }
 
-template<typename PointSource, typename PointTarget>
+template <typename PointSource, typename PointTarget>
 double FastGICPSingleThread<PointSource, PointTarget>::compute_error(const Eigen::Isometry3d& trans) {
   return linearize(trans, nullptr, nullptr);
 }
