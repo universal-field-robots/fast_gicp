@@ -38,7 +38,7 @@ public:
   ~FastVGICPCudaCore();
 
   void set_resolution(double resolution);
-  void set_kernel_params(double kernel_width, double kernel_max_dist);
+  void set_kernel_params(double kernel_exp_factor, double kernel_max_dist);
   void set_neighbor_search_method(fast_gicp::NeighborSearchMethod method, double radius);
 
   void swap_source_and_target();
@@ -72,7 +72,7 @@ public:
 
 public:
   double resolution;
-  double kernel_width;
+  double kernel_exp_factor;
   double kernel_max_dist;
   std::unique_ptr<VoxelCoordinates> offsets;
 

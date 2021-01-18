@@ -47,7 +47,7 @@ public:
 
   void setCorrespondenceRandomness(int k);
   void setResolution(double resolution);
-  void setKernelWidth(double kernel_width, double max_dist = -1.0);
+  void setKernelWidth(double exp_factor, double max_dist);
   void setRegularizationMethod(RegularizationMethod method);
   void setNeighborSearchMethod(NeighborSearchMethod method, double radius = -1.0);
   void setNearestNeighborSearchMethod(NearestNeighborMethod method);

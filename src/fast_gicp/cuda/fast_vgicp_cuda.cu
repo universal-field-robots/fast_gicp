@@ -22,8 +22,8 @@ FastVGICPCudaCore::FastVGICPCudaCore() {
   resolution = 1.0;
   linearized_x.setIdentity();
 
-  kernel_width = 0.25;
-  kernel_max_dist = 3.0;
+  kernel_exp_factor = 500.0;
+  kernel_max_dist = 1.5 * M_PI / 180.0;
 
   offsets.reset(new thrust::device_vector<Eigen::Vector3i>(1));
   (*offsets)[0] = Eigen::Vector3i::Zero().eval();
@@ -34,8 +34,8 @@ void FastVGICPCudaCore::set_resolution(double resolution) {
   this->resolution = resolution;
 }
 
-void FastVGICPCudaCore::set_kernel_params(double kernel_width, double kernel_max_dist) {
-  this->kernel_width = kernel_width;
+void FastVGICPCudaCore::set_kernel_params(double kernel_exp_factor, double kernel_max_dist) {
+  this->kernel_exp_factor = kernel_exp_factor;
   this->kernel_max_dist = kernel_max_dist;
 }
 
@@ -206,7 +206,7 @@ void FastVGICPCudaCore::calculate_source_covariances_rbf(RegularizationMethod me
   if(!source_covariances) {
     source_covariances.reset(new thrust::device_vector<Eigen::Matrix3f>(source_points->size()));
   }
-  covariance_estimation_rbf(*source_points, kernel_width, kernel_max_dist, *source_covariances);
+  covariance_estimation_rbf(*source_points, kernel_exp_factor, kernel_max_dist, *source_covariances);
   covariance_regularization(*source_points, *source_covariances, method);
 }
 
@@ -214,7 +214,7 @@ void FastVGICPCudaCore::calculate_target_covariances_rbf(RegularizationMethod me
   if(!target_covariances) {
     target_covariances.reset(new thrust::device_vector<Eigen::Matrix3f>(target_points->size()));
   }
-  covariance_estimation_rbf(*target_points, kernel_width, kernel_max_dist, *target_covariances);
+  covariance_estimation_rbf(*target_points, kernel_exp_factor, kernel_max_dist, *target_covariances);
   covariance_regularization(*target_points, *target_covariances, method);
 }
 

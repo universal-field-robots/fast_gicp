@@ -67,17 +67,29 @@ struct covariance_estimation_kernel {
   __host__ __device__ NormalDistribution operator()(const Eigen::Vector3f& x) const {
     const float exp_factor = *thrust::raw_pointer_cast(exp_factor_ptr);
     const float max_dist = *thrust::raw_pointer_cast(max_dist_ptr);
+    const float cos_max_dist = cosf(max_dist);
     const float max_dist_sq = max_dist * max_dist;
     const Eigen::Vector3f* points = thrust::raw_pointer_cast(points_ptr);
 
+    const Eigen::Vector3f normalized_x = x.normalized();
+
     NormalDistribution dist = NormalDistribution::zero();
     for (int i = 0; i < BLOCK_SIZE; i++) {
+      float cos = normalized_x.dot(points[i].normalized());
+      if (cos < cos_max_dist) {
+        continue;
+      }
+
+      float w = expf(-exp_factor * (1.0f - cos));
+
+      /*
       float sq_d = (x - points[i]).squaredNorm();
       if (sq_d > max_dist_sq) {
         continue;
       }
 
       float w = expf(-exp_factor * sq_d);
+      */
       dist.accumulate(w, points[i]);
     }
 
@@ -113,11 +125,15 @@ struct finalization_kernel {
   thrust::device_ptr<const NormalDistribution> accumulated_dists_last;
 };
 
-void covariance_estimation_rbf(const thrust::device_vector<Eigen::Vector3f>& points, double kernel_width, double max_dist, thrust::device_vector<Eigen::Matrix3f>& covariances) {
+void covariance_estimation_rbf(
+  const thrust::device_vector<Eigen::Vector3f>& points,
+  double kernel_exp_factor,
+  double max_dist,
+  thrust::device_vector<Eigen::Matrix3f>& covariances) {
   covariances.resize(points.size());
 
   thrust::device_vector<float> constants(2);
-  constants[0] = kernel_width;
+  constants[0] = kernel_exp_factor;
   constants[1] = max_dist;
   thrust::device_ptr<const float> exp_factor_ptr = constants.data();
   thrust::device_ptr<const float> max_dist_ptr = constants.data() + 1;

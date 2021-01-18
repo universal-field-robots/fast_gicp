@@ -28,7 +28,6 @@ FastVGICPCuda<PointSource, PointTarget>::FastVGICPCuda() : LsqRegistration<Point
 
   vgicp_cuda_.reset(new cuda::FastVGICPCudaCore());
   vgicp_cuda_->set_resolution(voxel_resolution_);
-  vgicp_cuda_->set_kernel_params(0.5, 3.0);
 }
 
 template<typename PointSource, typename PointTarget>
@@ -43,11 +42,8 @@ void FastVGICPCuda<PointSource, PointTarget>::setResolution(double resolution) {
 }
 
 template <typename PointSource, typename PointTarget>
-void FastVGICPCuda<PointSource, PointTarget>::setKernelWidth(double kernel_width, double max_dist) {
-  if (max_dist <= 0.0) {
-    max_dist = kernel_width * 5.0;
-  }
-  vgicp_cuda_->set_kernel_params(kernel_width, max_dist);
+void FastVGICPCuda<PointSource, PointTarget>::setKernelWidth(double exp_factor, double max_dist) {
+  vgicp_cuda_->set_kernel_params(exp_factor, max_dist);
 }
 
 template<typename PointSource, typename PointTarget>
