@@ -26,6 +26,14 @@ public:
   using PointCloudTargetPtr = typename PointCloudTarget::Ptr;
   using PointCloudTargetConstPtr = typename PointCloudTarget::ConstPtr;
 
+#if PCL_VERSION >= PCL_VERSION_CALC(1, 10, 0)
+  using Ptr = pcl::shared_ptr<LsqRegistration<PointSource, PointTarget>>;
+  using ConstPtr = pcl::shared_ptr<const LsqRegistration<PointSource, PointTarget>>;
+#else
+  using Ptr = boost::shared_ptr<LsqRegistration<PointSource, PointTarget>>;
+  using ConstPtr = boost::shared_ptr<const LsqRegistration<PointSource, PointTarget>>;
+#endif
+
 protected:
   using pcl::Registration<PointSource, PointTarget, Scalar>::input_;
   using pcl::Registration<PointSource, PointTarget, Scalar>::nr_iterations_;
@@ -45,6 +53,8 @@ public:
   void setDebugPrint(bool lm_debug_print);
 
   const Eigen::Matrix<double, 6, 6>& getFinalHessian() const;
+
+  double evaluateCost(const Eigen::Matrix4f& relative_pose, Eigen::Matrix<double, 6, 6>* H = nullptr, Eigen::Matrix<double, 6, 1>* b = nullptr);
 
   virtual void swapSourceAndTarget() {}
   virtual void clearSource() {}
