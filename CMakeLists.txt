@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10.0)
 project(fast_gicp)
 
-option(BUILD_VGICP_CUDA "Build GPU-powered VGICP" OFF)
+option(BUILD_VGICP_CUDA "Build GPU-powered VGICP" ON)
 option(BUILD_apps "Build application programs" ON)
 option(BUILD_test "Build test programs" OFF)
 option(BUILD_PYTHON_BINDINGS "Build python bindings" OFF)
@@ -40,7 +40,7 @@ endif()
 
 if(BUILD_VGICP_CUDA)
   find_package(CUDA REQUIRED)
-  include_directories(${CUDA_INCLUDE_DIRS})
+  include_directories(SYSTEM ${CUDA_INCLUDE_DIRS})
   link_directories(${CUDA_LIBRARY_DIRS})
 endif()
 
@@ -69,6 +69,7 @@ target_link_libraries(fast_gicp
 )
 target_include_directories(fast_gicp PUBLIC
   include
+  SYSTEM
   ${PCL_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIR}
 )
@@ -98,6 +99,7 @@ if(BUILD_PYTHON_BINDINGS)
   )
   target_include_directories(pygicp PUBLIC
     include
+    SYSTEM
     ${PCL_INCLUDE_DIRS}
     ${EIGEN3_INCLUDE_DIR}
   )
@@ -108,7 +110,7 @@ endif()
 
 ### CUDA ###
 if(BUILD_VGICP_CUDA)
-  set(CUDA_NVCC_FLAGS "--expt-relaxed-constexpr")
+  set(CUDA_NVCC_FLAGS "--expt-relaxed-constexpr --diag-suppress 177,20011,20012")
   add_definitions(-DUSE_VGICP_CUDA)
 
   cuda_add_library(fast_vgicp_cuda SHARED
@@ -126,6 +128,7 @@ if(BUILD_VGICP_CUDA)
   )
   target_include_directories(fast_vgicp_cuda PRIVATE
     include
+    SYSTEM
     thirdparty/Eigen
     thirdparty/nvbio
     ${catkin_INCLUDE_DIRS}
