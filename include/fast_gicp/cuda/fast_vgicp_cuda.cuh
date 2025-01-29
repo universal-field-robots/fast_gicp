@@ -8,8 +8,12 @@
 
 #include <fast_gicp/gicp/gicp_settings.hpp>
 
+#ifdef __CUDACC__
+#include <cuda_runtime_api.h>
+#include <thrust/pair.h>
+#include <thrust/device_vector.h>
+#else
 namespace thrust {
-
 template <typename T1, typename T2>
 class pair;
 
@@ -19,6 +23,7 @@ class device_allocator;
 template <typename T, typename Alloc>
 class device_vector;
 }  // namespace thrust
+#endif
 
 namespace fast_gicp {
 namespace cuda {
